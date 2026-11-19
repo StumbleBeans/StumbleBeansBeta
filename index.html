@@ -48,13 +48,6 @@
   #jumpBtn path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
   #jumpBtn .o { stroke: #1b1b1b; stroke-width: 22; }
   #jumpBtn .i { stroke: #fff; stroke-width: 11; }
-  #modeSel { position: fixed; top: 10px; right: 10px; z-index: 20; display: flex; gap: 8px; }
-  #modeSel button {
-    font-family: 'Arial Black', 'Impact', system-ui, sans-serif; font-weight: 900; letter-spacing: 2px; font-size: 16px; color: #fff;
-    -webkit-text-stroke: 5px #1b1b1b; paint-order: stroke fill; cursor: pointer;
-    background: rgba(255,255,255,.25); border: 5px solid #1b1b1b; box-shadow: 0 0 0 3px rgba(255,255,255,.7) inset; padding: 6px 14px; border-radius: 8px;
-  }
-  #modeSel button.on { background: rgba(255,255,255,.6); box-shadow: 0 0 0 3px #fff inset; }
 </style>
 </head>
 <body>
@@ -63,7 +56,6 @@
   <div id="joy"><div id="knob"></div></div>
   <div id="jumpBtn"><svg viewBox="0 0 64 64"><path class="o" d="M12 42 L32 20 L52 42"/><path class="i" d="M12 42 L32 20 L52 42"/></svg></div>
 </div>
-<div id="modeSel"><button data-m="pc">PC</button><button data-m="phone">PHONE</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -218,17 +210,14 @@ jumpEl.addEventListener('pointerdown', e => { e.preventDefault(); jumpEl.classLi
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => jumpEl.addEventListener(t, () => jumpEl.classList.remove('down')));
 document.addEventListener('contextmenu', e => { if (phone) e.preventDefault(); });
 
-// ---------- Wybór PC / telefon (auto + testowe guziki) ----------
-const modeBtns = document.querySelectorAll('#modeSel button');
+// ---------- Wykrywanie PC / telefon ----------
 function setMode(m) {
   phone = m === 'phone';
   document.body.classList.toggle('phone', phone);
-  modeBtns.forEach(b => b.classList.toggle('on', b.dataset.m === m));
   if (phone && document.pointerLockElement) document.exitPointerLock();
   joyReset(); camId = null;
 }
-modeBtns.forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
-setMode(matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 ? 'phone' : 'pc');
+setMode(matchMedia('(pointer: coarse)').matches ? 'phone' : 'pc');
 
 // ---------- Pętla ----------
 const clock = new THREE.Clock();
