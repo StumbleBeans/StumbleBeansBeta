@@ -5,7 +5,7 @@
 <title>Stumble Beans</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; font-family: system-ui, sans-serif; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1033; font-family: system-ui, sans-serif; }
   canvas { display: block; }
   #elim {
     position: fixed; left: 0; right: 0; top: 50%; transform: translateY(-50%);
@@ -27,17 +27,50 @@
   @keyframes elimBand { from { opacity: 0; transform: translateY(-50%) scaleY(0); } to { opacity: 1; transform: translateY(-50%) scaleY(1); } }
   @keyframes elimPop { 0% { transform: scale(4) rotate(-12deg); opacity: 0; } 60% { opacity: 1; } 100% { transform: scale(1) rotate(-3deg); } }
   @keyframes elimShake { 0%,100% { transform: rotate(-3deg) scale(1); } 25% { transform: rotate(2deg) scale(1.06); } 75% { transform: rotate(-5deg) scale(1.06); } }
+
+  /* ---------- Sterowanie dotykowe ---------- */
+  #touch { position: fixed; inset: 0; display: none; z-index: 5; pointer-events: none; user-select: none; -webkit-user-select: none; touch-action: none; }
+  body.phone #touch { display: block; }
+  body.elimd #touch { display: none; }
+  #joy, #jumpBtn {
+    position: absolute; pointer-events: auto; touch-action: none; border-radius: 50%;
+    background: rgba(255,255,255,.28); border: 7px solid #1b1b1b; box-sizing: border-box;
+    box-shadow: 0 0 0 5px rgba(255,255,255,.85) inset, 0 6px 0 rgba(0,0,0,.35);
+  }
+  #joy { left: 5vmin; bottom: 8vmin; width: clamp(130px, 32vmin, 220px); height: clamp(130px, 32vmin, 220px); }
+  #knob {
+    position: absolute; left: 50%; top: 50%; width: 46%; height: 46%; margin: -23% 0 0 -23%; border-radius: 50%;
+    background: #fff; border: 8px solid #1b1b1b; box-sizing: border-box; box-shadow: 0 5px 0 rgba(0,0,0,.35); pointer-events: none;
+  }
+  #jumpBtn { right: 6vmin; bottom: 10vmin; width: clamp(110px, 28vmin, 190px); height: clamp(110px, 28vmin, 190px); transition: transform .08s; }
+  #jumpBtn.down { transform: scale(.9); background: rgba(255,255,255,.5); }
+  #jumpBtn svg { position: absolute; inset: 14%; width: 72%; height: 72%; pointer-events: none; }
+  #jumpBtn path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  #jumpBtn .o { stroke: #1b1b1b; stroke-width: 22; }
+  #jumpBtn .i { stroke: #fff; stroke-width: 11; }
+  #modeSel { position: fixed; top: 10px; right: 10px; z-index: 20; display: flex; gap: 8px; }
+  #modeSel button {
+    font-family: 'Arial Black', 'Impact', system-ui, sans-serif; font-weight: 900; letter-spacing: 2px; font-size: 16px; color: #fff;
+    -webkit-text-stroke: 5px #1b1b1b; paint-order: stroke fill; cursor: pointer;
+    background: rgba(255,255,255,.25); border: 5px solid #1b1b1b; box-shadow: 0 0 0 3px rgba(255,255,255,.7) inset; padding: 6px 14px; border-radius: 8px;
+  }
+  #modeSel button.on { background: rgba(255,255,255,.6); box-shadow: 0 0 0 3px #fff inset; }
 </style>
 </head>
 <body>
 <div id="elim"><span>ELIMINATED!</span></div>
+<div id="touch">
+  <div id="joy"><div id="knob"></div></div>
+  <div id="jumpBtn"><svg viewBox="0 0 64 64"><path class="o" d="M12 42 L32 20 L52 42"/><path class="i" d="M12 42 L32 20 L52 42"/></svg></div>
+</div>
+<div id="modeSel"><button data-m="pc">PC</button><button data-m="phone">PHONE</button></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 // ---------- Scena ----------
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8fd3ff);
-scene.fog = new THREE.Fog(0x8fd3ff, 60, 160);
+scene.background = new THREE.Color(0x0b1033);
+scene.fog = new THREE.Fog(0x0b1033, 60, 160);
 
 const camera = new THREE.PerspectiveCamera(65, innerWidth / innerHeight, 0.1, 300);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -47,8 +80,28 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 document.body.appendChild(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xffffff, 0x88aacc, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+scene.add(new THREE.HemisphereLight(0xaab8ff, 0x445577, 0.75));
+const sun = new THREE.DirectionalLight(0xdde4ff, 0.7);
+
+// ---------- Gwiazdy ----------
+const stars = (function makeStars() {
+  const N = 1600, arr = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.random() * 2 - 1;                 // cała sfera (góra i dół)
+    const r = 220, s = Math.sqrt(1 - v * v);
+    arr[i * 3]     = Math.cos(u) * s * r;
+    arr[i * 3 + 1] = v * r;
+    arr[i * 3 + 2] = Math.sin(u) * s * r;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const m = new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.9, depthWrite: false });
+  const p = new THREE.Points(g, m);
+  p.frustumCulled = false;
+  scene.add(p);
+  return p;
+})();
 sun.position.set(30, 50, 20);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -62,14 +115,14 @@ const FLOOR_HALF = 40;
 (function makeFloor() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const g = c.getContext('2d');
-  g.fillStyle = '#ffd24a'; g.fillRect(0, 0, 128, 128);
-  g.fillStyle = '#ff9f43'; g.fillRect(0, 0, 64, 64); g.fillRect(64, 64, 64, 64);
+  g.fillStyle = '#b07cff'; g.fillRect(0, 0, 128, 128);
+  g.fillStyle = '#8a4fe0'; g.fillRect(0, 0, 64, 64); g.fillRect(64, 64, 64, 64);
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(FLOOR_HALF, FLOOR_HALF);
   const floor = new THREE.Mesh(
     new THREE.BoxGeometry(FLOOR_HALF * 2, 2, FLOOR_HALF * 2),
-    [0,1,2,3,4,5].map(i => new THREE.MeshStandardMaterial(i === 2 ? { map: tex } : { color: 0xc9772a }))
+    [0,1,2,3,4,5].map(i => new THREE.MeshStandardMaterial(i === 2 ? { map: tex } : { color: 0x5a2a9a }))
   );
   floor.position.y = -1;
   floor.receiveShadow = true;
@@ -103,25 +156,79 @@ const GRAVITY = 32, JUMP_V = 12, DIVE_SPEED = 15, DIVE_TIME = 0.85, DIVE_HEIGHT 
 // ---------- Sterowanie ----------
 const keys = {};
 let lastSpace = -1, diveBuffer = 0;
+let phone = false;
+const joy = { x: 0, y: 0, id: null };
+
+function pressJump() {
+  const now = performance.now() / 1000;
+  if (now - lastSpace < 0.5) { diveBuffer = 0.35; lastSpace = -1; }   // podwójny skok = dive
+  else { jumpBuffer = 0.12; lastSpace = now; }
+}
 addEventListener('keydown', e => {
   if (e.code === 'Space') e.preventDefault();
   if (e.repeat) return;
   keys[e.code] = true;
-  if (e.code === 'Space') {
-    const now = performance.now() / 1000;
-    if (now - lastSpace < 0.5) { diveBuffer = 0.35; lastSpace = -1; }   // podwójna spacja = dive
-    else { jumpBuffer = 0.12; lastSpace = now; }
-  }
+  if (e.code === 'Space') pressJump();
 });
 addEventListener('keyup', e => keys[e.code] = false);
 
-renderer.domElement.addEventListener('click', () => renderer.domElement.requestPointerLock());
+const cv = renderer.domElement;
+cv.style.touchAction = 'none';
+cv.addEventListener('click', () => { if (!phone) cv.requestPointerLock(); });
 addEventListener('mousemove', e => {
   if (!document.pointerLockElement) return;
   yaw   -= e.movementX * 0.0025;
   pitch += e.movementY * 0.0025;
   pitch = Math.max(-0.2, Math.min(1.2, pitch));
 });
+
+// ---------- Telefon: kamera (przeciąganie), joystick, skok ----------
+let camId = null, camX = 0, camY = 0;
+cv.addEventListener('pointerdown', e => {
+  if (!phone || camId !== null) return;
+  camId = e.pointerId; camX = e.clientX; camY = e.clientY; cv.setPointerCapture(camId);
+});
+cv.addEventListener('pointermove', e => {
+  if (e.pointerId !== camId) return;
+  yaw   -= (e.clientX - camX) * 0.006;
+  pitch += (e.clientY - camY) * 0.006;
+  pitch = Math.max(-0.2, Math.min(1.2, pitch));
+  camX = e.clientX; camY = e.clientY;
+});
+const camEnd = e => { if (e.pointerId === camId) camId = null; };
+cv.addEventListener('pointerup', camEnd); cv.addEventListener('pointercancel', camEnd);
+
+const joyEl = document.getElementById('joy'), knob = document.getElementById('knob');
+function joyMove(e) {
+  const r = joyEl.getBoundingClientRect(), R = r.width / 2;
+  let dx = e.clientX - (r.left + R), dy = e.clientY - (r.top + R);
+  const len = Math.hypot(dx, dy);
+  if (len > R) { dx *= R / len; dy *= R / len; }
+  knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  joy.x = dx / R; joy.y = -dy / R;
+}
+function joyReset() { joy.id = null; joy.x = joy.y = 0; knob.style.transform = ''; }
+joyEl.addEventListener('pointerdown', e => { if (joy.id !== null) return; joy.id = e.pointerId; joyEl.setPointerCapture(e.pointerId); joyMove(e); });
+joyEl.addEventListener('pointermove', e => { if (e.pointerId === joy.id) joyMove(e); });
+joyEl.addEventListener('pointerup', e => { if (e.pointerId === joy.id) joyReset(); });
+joyEl.addEventListener('pointercancel', e => { if (e.pointerId === joy.id) joyReset(); });
+
+const jumpEl = document.getElementById('jumpBtn');
+jumpEl.addEventListener('pointerdown', e => { e.preventDefault(); jumpEl.classList.add('down'); pressJump(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => jumpEl.addEventListener(t, () => jumpEl.classList.remove('down')));
+document.addEventListener('contextmenu', e => { if (phone) e.preventDefault(); });
+
+// ---------- Wybór PC / telefon (auto + testowe guziki) ----------
+const modeBtns = document.querySelectorAll('#modeSel button');
+function setMode(m) {
+  phone = m === 'phone';
+  document.body.classList.toggle('phone', phone);
+  modeBtns.forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  if (phone && document.pointerLockElement) document.exitPointerLock();
+  joyReset(); camId = null;
+}
+modeBtns.forEach(b => b.addEventListener('click', () => setMode(b.dataset.m)));
+setMode(matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0 ? 'phone' : 'pc');
 
 // ---------- Pętla ----------
 const clock = new THREE.Clock();
@@ -137,6 +244,7 @@ function respawn() {
   pos.set(0, HALF_H + 3, 0); vel.set(0, 0, 0); diving = false; grounded = false;
   groundH = HALF_H; diveBuffer = 0; jumpBuffer = 0; yaw = 0;
   eliminated = false; elimEl.classList.remove('show');
+  document.body.classList.remove('elimd');   // pokaż guziki z powrotem
 }
 
 function update(dt) {
@@ -154,10 +262,11 @@ function update(dt) {
   // kierunek względem kamery
   let ix = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
   let iz = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+  ix += joy.x; iz += joy.y;
   const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
   const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
   const wish = new THREE.Vector3().addScaledVector(fwd, iz).addScaledVector(right, ix);
-  const hasInput = wish.lengthSq() > 0;
+  const hasInput = wish.lengthSq() > 0.04;   // martwa strefa joysticka
   if (hasInput) wish.normalize();
 
   // dive
@@ -240,6 +349,8 @@ function update(dt) {
   // respawn po spadnięciu
   if (pos.y < FALL_LIMIT) {
     eliminated = true; elimTimer = ELIM_TIME;
+    document.body.classList.add('elimd');      // schowaj guziki
+    joyReset(); camId = null; jumpEl.classList.remove('down');
     elimEl.classList.remove('show'); void elimEl.offsetWidth; elimEl.classList.add('show');
   }
 
@@ -266,6 +377,9 @@ function update(dt) {
   camPos.y = Math.max(camPos.y, 0.5);
   camera.position.lerp(camPos, Math.min(1, dt * 12));
   camera.lookAt(target);
+
+  // gwiazdy zawsze wokół kamery (nieskończenie daleko)
+  stars.position.copy(camera.position);
 
   // cień podąża za graczem
   sun.position.set(pos.x + 30, 50, pos.z + 20);
